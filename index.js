@@ -21,7 +21,7 @@
 import { eventSource, event_types } from '../../../../script.js';
 import { registerTtsProvider, saveTtsProviderSettings } from '../../tts/index.js';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const PROVIDER_NAME = 'MiMo';
 const DEFAULT_BASE_URL = 'https://api.xiaomimimo.com/v1';
 const BYTES_PER_SECOND = 48000; // pcm16 24kHz/16bit 单声道 = 48000 B/s
@@ -127,6 +127,7 @@ export class MiMoTtsProvider {
         voiceMap: {},
         model: 'mimo-v2.5-tts',
         base_url: '',
+        api_key: '',
         // whole = 整段播放（干净、连贯）；chunked = 分块流式（首音快但有间断）
         play_mode: 'whole',
         // 仅 chunked 模式有效：每块攒够多久才抛给播放器
@@ -587,6 +588,7 @@ export class MiMoTtsProvider {
             headers: {
                 'Content-Type': 'application/json',
                 'api-key': key,
+                'Authorization': `Bearer ${key}`,
             },
             signal,
             body: JSON.stringify(payload),

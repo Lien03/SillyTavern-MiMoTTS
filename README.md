@@ -3,12 +3,16 @@
 把**小米 MiMo 语音合成**（`mimo-v2.5-tts`）接入 SillyTavern 的一个 TTS 供应商扩展。
 安装后，酒馆 TTS 面板的 Provider 下拉框里会多出 **MiMo** 一项。
 
-> 状态：**v0.2.1 / 实验性**。作者时间有限，不保证及时响应 issue 或跟进 MiMo API 变动。
+> 状态：**v0.2.2 / 实验性**。作者时间有限，不保证及时响应 issue 或跟进 MiMo API 变动。
 > 欢迎 fork、PR，或者直接把这当成一份「踩坑记录」拿去改。见[开发者说明](#开发者说明踩坑记录)。
 
 ---
 
 ## 更新日志
+
+### v0.2.2
+- 修复 OpenAI / New API 中转鉴权：同时发送 `Authorization: Bearer` 和官方的 `api-key` 请求头
+- 修复刷新页面后已保存的 API Key 被忽略的问题
 
 ### v0.2.1
 - ✨ 新增**自定义 Base URL**：支持自建代理或中转服务，留空继续使用官方接口
@@ -139,7 +143,7 @@ git clone https://github.com/ymf2317-tech/SillyTavern-MiMoTTS
 | 末尾多了斜杠也没关系 | `https://example.com/proxy/v1/` | `https://example.com/proxy/v1/chat/completions` |
 
 > **搭建代理的注意事项**：
-> - 代理必须完整转发 MiMo 的 `/v1/chat/completions` 接口（请求体、`api-key` 请求头、SSE 流）
+> - 代理必须支持 MiMo 的 `/v1/chat/completions` 请求体和 SSE 流；扩展同时发送官方的 `api-key` 和中转常用的 `Authorization: Bearer` 请求头
 > - 代理需允许浏览器跨域访问（设置 `Access-Control-Allow-Origin` 等 CORS 响应头）
 > - 非法地址（非 HTTP/HTTPS、格式错误）会在请求前被拒绝，不会发出网络请求
 
@@ -154,13 +158,13 @@ git clone https://github.com/ymf2317-tech/SillyTavern-MiMoTTS
 
 | 现象 | 处理 |
 |---|---|
-| 下拉框里**没有 MiMo** | ES module 缓存很顽固，**硬刷新**（Ctrl+Shift+R）。F12 控制台应出现 `[MiMo TTS] v0.2.1 供应商已注册` |
+| 下拉框里**没有 MiMo** | ES module 缓存很顽固，**硬刷新**（Ctrl+Shift+R）。F12 控制台应出现 `[MiMo TTS] v0.2.2 供应商已注册` |
 | **念出了标签/元数据** | 见上文「必须这样配置」：关掉按段朗读 + 关掉跳过标签块 + 用跨行正则 |
 | 声音**一卡一卡/突突** | 确认"播放方式"= **整段播放**。若仍异常，见开发者说明的"Xing 坑" |
 | 点了另一条消息**没反应/两条一起读** | 已内置取消机制，确认装的是最新版；建议关掉 `Auto-generation` |
 | 报 `请先在 MiMo 供应商设置里填写 API Key` | 在供应商设置里填 Key |
 | 报 `Base URL 无效` 或 `仅支持 http/https` | 检查 Base URL 格式，确认包含 `http://` 或 `https://` 前缀和正确的路径 |
-| 报 `MiMo HTTP 4xx` | Key 无效 / 额度或权限问题 / 模型名写错 / Base URL 指向了错误的服务 |
+| 报 `MiMo HTTP 4xx` | Key 无效 / 额度或权限问题 / 模型名写错 / Base URL 指向了错误的服务；使用 OpenAI / New API 中转时需 v0.2.2 或更新版本 |
 | 等了很久才出声 | 打开「分段流水线」；或把角色回复长度限制调小（等待与字数成正比） |
 | 直连不通（部分地区网络） | 需要能直连 `api.xiaomimimo.com`；可设置自定义 Base URL 使用代理中转 |
 
@@ -260,7 +264,7 @@ body: {
 
 **MiMo TTS provider for SillyTavern** — use Xiaomi MiMo speech synthesis (`mimo-v2.5-tts`) as a native TTS provider.
 
-**Status: v0.2.1, experimental.** Limited maintenance. PRs welcome.
+**Status: v0.2.2, experimental.** Limited maintenance. PRs welcome.
 
 ## Important: required settings
 
@@ -291,7 +295,7 @@ The extension appends `/chat/completions` to the Base URL automatically. Only fi
 | Official API (default, leave blank) | *(empty)* | `https://api.xiaomimimo.com/v1/chat/completions` |
 | Custom proxy | `https://example.com/proxy/v1` | `https://example.com/proxy/v1/chat/completions` |
 
-Proxy requirements: must forward the MiMo `/v1/chat/completions` endpoint (request body, `api-key` header, SSE stream) and set appropriate CORS headers (`Access-Control-Allow-Origin`, etc.).
+Proxy requirements: must support the MiMo `/v1/chat/completions` request body and SSE stream, and set appropriate CORS headers (`Access-Control-Allow-Origin`, etc.). Requests include both Xiaomi's `api-key` and the `Authorization: Bearer` header used by OpenAI / New API relays.
 
 ## Known limitations
 
