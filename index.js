@@ -21,9 +21,9 @@
 import { eventSource, event_types } from '../../../../script.js';
 import { registerTtsProvider, saveTtsProviderSettings } from '../../tts/index.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 const PROVIDER_NAME = 'MiMo';
-const MIMO_ENDPOINT = 'https://api.xiaomimimo.com/v1/chat/completions';
+const DEFAULT_BASE_URL = 'https://api.xiaomimimo.com/v1';
 const BYTES_PER_SECOND = 48000; // pcm16 24kHz/16bit 单声道 = 48000 B/s
 const PCM_SAMPLE_RATE = 24000;
 const PREVIEW_TEXT = '你好，我是小米 MiMo 的语音合成，这是一段试听。';
@@ -126,6 +126,7 @@ export class MiMoTtsProvider {
     defaultSettings = {
         voiceMap: {},
         model: 'mimo-v2.5-tts',
+        base_url: '',
         // whole = 整段播放（干净、连贯）；chunked = 分块流式（首音快但有间断）
         play_mode: 'whole',
         // 仅 chunked 模式有效：每块攒够多久才抛给播放器
@@ -174,6 +175,13 @@ export class MiMoTtsProvider {
             </div>
 
             <hr>
+
+            <label for="mimo_base_url">Base URL：</label>
+            <input id="mimo_base_url" type="text" class="text_pole" maxlength="500" placeholder="https://api.xiaomimimo.com/v1"/>
+            <small>
+                API 根地址，需包含版本路径（如 <code>/v1</code>），末尾不要加斜杠。<br>
+                留空使用官方默认地址。自定义代理示例：<code>https://example.com/proxy/v1</code>
+            </small>
 
             <label for="mimo_api_key">API Key：</label>
             <input id="mimo_api_key" type="password" class="text_pole" maxlength="200" placeholder="sk-..." autocomplete="off"/>
@@ -228,6 +236,7 @@ export class MiMoTtsProvider {
         $('#mimo_pipeline').prop('checked', !!this.settings.pipeline);
         $('#mimo_pipeline_first').val(this.settings.pipeline_first);
         $('#mimo_pipeline_max').val(this.settings.pipeline_max);
+        $('#mimo_base_url').val(this.settings.base_url);
         $('#mimo_api_key').val(this.settings.api_key);
         $('#mimo_model').val(this.settings.model);
         $('#mimo_voices').val(this.settings.voices.join(','));
@@ -242,6 +251,7 @@ export class MiMoTtsProvider {
         bind('#mimo_pipeline', () => this.onSettingsChange());
         bind('#mimo_pipeline_first', () => this.onSettingsChange());
         bind('#mimo_pipeline_max', () => this.onSettingsChange());
+        bind('#mimo_base_url', () => this.onSettingsChange());
         bind('#mimo_api_key', () => this.onSettingsChange());
         bind('#mimo_model', () => this.onSettingsChange());
         bind('#mimo_voices', () => this.onSettingsChange());
@@ -261,6 +271,7 @@ export class MiMoTtsProvider {
         this.settings.pipeline_first = Number.isFinite(pf) ? Math.min(200, Math.max(5, pf)) : 20;
         const pm = Number($('#mimo_pipeline_max').val());
         this.settings.pipeline_max = Number.isFinite(pm) ? Math.min(500, Math.max(20, pm)) : 120;
+        this.settings.base_url = String($('#mimo_base_url').val() || '');
         this.settings.api_key = String($('#mimo_api_key').val() || '');
         this.settings.model = String($('#mimo_model').val() || 'mimo-v2.5-tts');
         this.settings.voices = String($('#mimo_voices').val() || '')
@@ -522,12 +533,41 @@ export class MiMoTtsProvider {
         }
     }
 
+    /**
+     * 根据用户设置解析请求端点。
+     * 为空时使用官方默认地址；否则去除首尾空白和末尾斜杠后拼接 /chat/completions。
+     * @returns {string} 完整的请求 URL
+     */
+    resolveEndpoint() {
+        let raw = String(this.settings.base_url || '').trim();
+        if (!raw) {
+            raw = DEFAULT_BASE_URL;
+        }
+        // 去掉末尾所有斜杠
+        raw = raw.replace(/\/+$/, '');
+        const endpoint = `${raw}/chat/completions`;
+
+        // 验证是否为合法的 HTTP/HTTPS URL
+        let parsed;
+        try {
+            parsed = new URL(endpoint);
+        } catch {
+            throw new Error(`Base URL 无效，无法解析为合法地址。请检查格式（当前值：${raw}）`);
+        }
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            throw new Error(`Base URL 仅支持 http:// 或 https:// 协议（当前：${parsed.protocol}）`);
+        }
+        return endpoint;
+    }
+
     /** 直连请求 */
     postDirect(text, voiceId, stream, format, signal) {
         const key = String(this.settings.api_key || '').trim();
         if (!key) {
             throw new Error('请先在 MiMo 供应商设置里填写 API Key');
         }
+
+        const endpoint = this.resolveEndpoint();
 
         const style = String(this.settings.style || '').trim();
         const payload = {
@@ -542,7 +582,7 @@ export class MiMoTtsProvider {
             payload.stream = true;
         }
 
-        return fetch(MIMO_ENDPOINT, {
+        return fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -603,7 +643,7 @@ function register() {
     try {
         registerTtsProvider(PROVIDER_NAME, MiMoTtsProvider);
         registered = true;
-        console.info(`[MiMo TTS] v${VERSION} 供应商已注册`);
+        console.info(`[MiMo TTS] v${VERSION} 供应商已注册（支持自定义 Base URL）`);
     } catch (error) {
         console.warn('[MiMo TTS] 注册失败（可能已注册）', error);
     }
