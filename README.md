@@ -3,12 +3,16 @@
 把**小米 MiMo 语音合成**（`mimo-v2.5-tts`）接入 SillyTavern 的一个 TTS 供应商扩展。
 安装后，酒馆 TTS 面板的 Provider 下拉框里会多出 **MiMo** 一项。
 
-> 状态：**v0.2.0 / 实验性**。作者时间有限，不保证及时响应 issue 或跟进 MiMo API 变动。
+> 状态：**v0.2.1 / 实验性**。作者时间有限，不保证及时响应 issue 或跟进 MiMo API 变动。
 > 欢迎 fork、PR，或者直接把这当成一份「踩坑记录」拿去改。见[开发者说明](#开发者说明踩坑记录)。
 
 ---
 
 ## 更新日志
+
+### v0.2.1
+- ✨ 新增**自定义 Base URL**：支持自建代理或中转服务，留空继续使用官方接口
+- 🔒 请求前验证地址格式（仅允许 HTTP/HTTPS），错误提示不泄露 API Key
 
 ### v0.2.0
 - ✨ 新增**分段流水线**：长文本自动按句切分、逐批请求、边到边播，**首音从 5~10 秒降到约 2 秒**
@@ -116,12 +120,28 @@ git clone https://github.com/ymf2317-tech/SillyTavern-MiMoTTS
 
    | 选项 | 默认 | 说明 |
    |---|---|---|
+   | Base URL | 空（= 官方地址） | 填写包含版本路径的 API 根地址，见下方格式说明 |
    | 模型 | `mimo-v2.5-tts` | 也可填 `mimo-v2.5-tts-voicedesign` / `-voiceclone`（未测试） |
    | 音色列表 | 茉莉,冰糖,苏打,白桦,Mia,Chloe,Milo,Dean | 逗号分隔；Voice Map 从这里选 |
    | 播放方式 | **整段播放** | 推荐 |
    | **分段流水线** | **开** | 首音约 2 秒 |
    | 首批字数 / 每批上限 | 20 / 120 | 越小首音越快；每批上限越大卡顿越少 |
    | 风格指令 | 空 | 可选，例：`用轻快上扬的语调，语速稍快` |
+
+### Base URL 格式
+
+扩展会在 Base URL 后面自动拼接 `/chat/completions`，所以 **只需填到版本路径为止**：
+
+| 场景 | Base URL | 实际请求地址 |
+|---|---|---|
+| 官方接口（默认，留空即可） | *(空)* | `https://api.xiaomimimo.com/v1/chat/completions` |
+| 自定义代理 | `https://example.com/proxy/v1` | `https://example.com/proxy/v1/chat/completions` |
+| 末尾多了斜杠也没关系 | `https://example.com/proxy/v1/` | `https://example.com/proxy/v1/chat/completions` |
+
+> **搭建代理的注意事项**：
+> - 代理必须完整转发 MiMo 的 `/v1/chat/completions` 接口（请求体、`api-key` 请求头、SSE 流）
+> - 代理需允许浏览器跨域访问（设置 `Access-Control-Allow-Origin` 等 CORS 响应头）
+> - 非法地址（非 HTTP/HTTPS、格式错误）会在请求前被拒绝，不会发出网络请求
 
 4. **给角色指定音色**：在 TTS 面板的 **Voice Map** 里为每个角色选音色
 5. 点某条消息旁的**喇叭图标**即可朗读
@@ -134,14 +154,15 @@ git clone https://github.com/ymf2317-tech/SillyTavern-MiMoTTS
 
 | 现象 | 处理 |
 |---|---|
-| 下拉框里**没有 MiMo** | ES module 缓存很顽固，**硬刷新**（Ctrl+Shift+R）。F12 控制台应出现 `[MiMo TTS] v0.2.0 供应商已注册` |
+| 下拉框里**没有 MiMo** | ES module 缓存很顽固，**硬刷新**（Ctrl+Shift+R）。F12 控制台应出现 `[MiMo TTS] v0.2.1 供应商已注册` |
 | **念出了标签/元数据** | 见上文「必须这样配置」：关掉按段朗读 + 关掉跳过标签块 + 用跨行正则 |
 | 声音**一卡一卡/突突** | 确认"播放方式"= **整段播放**。若仍异常，见开发者说明的"Xing 坑" |
 | 点了另一条消息**没反应/两条一起读** | 已内置取消机制，确认装的是最新版；建议关掉 `Auto-generation` |
 | 报 `请先在 MiMo 供应商设置里填写 API Key` | 在供应商设置里填 Key |
-| 报 `MiMo HTTP 4xx` | Key 无效 / 额度或权限问题 / 模型名写错 |
+| 报 `Base URL 无效` 或 `仅支持 http/https` | 检查 Base URL 格式，确认包含 `http://` 或 `https://` 前缀和正确的路径 |
+| 报 `MiMo HTTP 4xx` | Key 无效 / 额度或权限问题 / 模型名写错 / Base URL 指向了错误的服务 |
 | 等了很久才出声 | 打开「分段流水线」；或把角色回复长度限制调小（等待与字数成正比） |
-| 直连不通（部分地区网络） | 需要能直连 `api.xiaomimimo.com`；若代理是全局模式，请给它加**直连**分流 |
+| 直连不通（部分地区网络） | 需要能直连 `api.xiaomimimo.com`；可设置自定义 Base URL 使用代理中转 |
 
 ---
 
@@ -239,7 +260,7 @@ body: {
 
 **MiMo TTS provider for SillyTavern** — use Xiaomi MiMo speech synthesis (`mimo-v2.5-tts`) as a native TTS provider.
 
-**Status: v0.2.0, experimental.** Limited maintenance. PRs welcome.
+**Status: v0.2.1, experimental.** Limited maintenance. PRs welcome.
 
 ## Important: required settings
 
@@ -256,9 +277,21 @@ So while `Narrate by paragraphs` is ON, **multi-line regex silently fails** and 
 ## Features
 
 - Async **segmented pipeline**: splits long text by sentence, requests in batches, streams out as it goes → **first audio in ~2 s**
+- **Customizable Base URL**: use a self-hosted proxy or relay; leave blank for the official Xiaomi API
 - Whole-utterance playback (no stutter), experimental chunked mode
 - Cancels in-flight requests when you switch messages
-- Direct browser → Xiaomi API; no server proxy, no server plugin
+- Direct browser → Xiaomi API (or your proxy); no server plugin required
+
+### Base URL format
+
+The extension appends `/chat/completions` to the Base URL automatically. Only fill in up to the version path:
+
+| Scenario | Base URL | Actual request URL |
+|---|---|---|
+| Official API (default, leave blank) | *(empty)* | `https://api.xiaomimimo.com/v1/chat/completions` |
+| Custom proxy | `https://example.com/proxy/v1` | `https://example.com/proxy/v1/chat/completions` |
+
+Proxy requirements: must forward the MiMo `/v1/chat/completions` endpoint (request body, `api-key` header, SSE stream) and set appropriate CORS headers (`Access-Control-Allow-Origin`, etc.).
 
 ## Known limitations
 
